@@ -1,7 +1,7 @@
 <?php
 
-if( ! class_exists('acf_field_image_crop') ) :
-class acf_field_image_crop extends acf_field_image {
+if( ! class_exists('acf_field_manual_image_crop') ) :
+class acf_field_manual_image_crop extends acf_field_image {
 
 
     /*
@@ -155,13 +155,6 @@ class acf_field_image_crop extends acf_field_image {
     // render field
     function render_field( $field ) {
 
-
-        $test = get_field('image');
-
-        ?>
-            <img src="<?php echo $test; ?>">
-        <?php
-
         // enqueue
         acf_enqueue_uploader();
 
@@ -187,6 +180,9 @@ class acf_field_image_crop extends acf_field_image {
             'data-cropped-image'    => json_encode($imageData->cropped_image),
             'class'                 => 'acf-image-value'
         );
+
+
+        var_dump($imageData->original_image);
 
         $input_atts = array(
             'type'                  => 'select',
@@ -590,7 +586,7 @@ class acf_field_image_crop extends acf_field_image {
 }
 
 // create field
-new acf_field_image_crop();
+new acf_field_manual_image_crop();
 
 endif;
 
