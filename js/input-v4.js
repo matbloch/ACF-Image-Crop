@@ -18,9 +18,9 @@
 
 	$(document).on('acf/setup_fields', function(e, postbox){
 		$(postbox).find('.field_type-image_crop').each(function(){
-			var $field = $(this).find('.acf-image-crop');
+			var $field = $(this).find('.acf-manual-image-crop');
 			var $options = $field;
-			// var $el = $field.find('.acf-image-crop');
+			// var $el = $field.find('.acf-manual-image-crop');
 			$field.find('.acf-image-value').on('change', function(){
 				var originalImage = $(this).val();
 				if($(this).val()){
@@ -29,7 +29,7 @@
 					$field.find('.acf-image-value').data('original-image', originalImage);
 					$field.find('.acf-image-value').data('cropped-image', originalImage);
 					$field.find('.acf-image-value').data('cropped', false);
-					$.post(ajaxurl, {action: 'acf_image_crop_get_image_size', image_id: originalImage}, function(data, textStatus, xhr) {
+					$.post(ajaxurl, {action: 'acf_manual_image_crop_get_image_size', image_id: originalImage}, function(data, textStatus, xhr) {
 						if($field.find('img.crop-image').length == 0){
 							$field.find('.crop-action').append($('<img class="crop-image" src="#"/>'));
 						}
@@ -64,7 +64,7 @@
 					//Do nothing
 				}
 
-			})
+			});
 			$field.find('.init-crop-button').click(function(e){
 				e.preventDefault();
 				initCrop($field);
@@ -101,6 +101,7 @@
 
 	function initCrop($field){
 		var $options = $field;
+        alert('asdfasdf');
 		var options = {
 			handles: true,
 			onSelectEnd: function (img, selection) {
@@ -112,6 +113,9 @@
 		    x1: 0,
 		    y1: 0
 		};
+
+        options.aspectRatio = '2:3';
+        /*
 		if($options.data('crop-type') == 'hard'){
 			options.aspectRatio = $options.data('width') + ':' + $options.data('height');
 			options.minWidth = $options.data('width');
@@ -135,6 +139,7 @@
 				options.y2 = options.imageHeight;
 			}
 		}
+        */
 		// Center crop - disabled needs more testing
 		// options.x1 = options.imageWidth/2 - (options.minWidth/2);
 		// options.y1 = options.imageHeight/2 - (options.minHeight/2)
@@ -181,7 +186,7 @@
 		var obj = {
 			original_image: originalImage,
 			cropped_image: croppedImage
-		}
+		};
 		return JSON.stringify(obj);
 	}
 
@@ -197,7 +202,7 @@
 				targetHeight = $options.data('y2') - $options.data('y1');
 			}
 			var data = {
-				action: 'acf_image_crop_perform_crop',
+				action: 'acf_manual_image_crop_perform_crop',
 				id: $field.find('.acf-image-value').data('original-image'),
 				x1: $options.data('x1'),
 				x2: $options.data('x2'),
@@ -231,10 +236,10 @@
 
 	function toggleCropView($field){
 		if($field.hasClass('cropping')){
-			$('#acf-image-crop-overlay').remove();
+			$('#acf-manual-image-crop-overlay').remove();
 		}
 		else{
-			$('body').append($('<div id="acf-image-crop-overlay"></div>'));
+			$('body').append($('<div id="acf-manual-image-crop-overlay"></div>'));
 		}
 		$field.toggleClass('cropping');
 	}
