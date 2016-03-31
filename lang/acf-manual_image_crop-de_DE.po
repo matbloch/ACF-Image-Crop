@@ -24,8 +24,8 @@ msgstr ""
 #: acf-manual-image-crop-v5.php:32
 #@ default
 #@ acf-manual_image_crop
-msgid "Image with user-crop"
-msgstr "Bild (mit Größenoption)"
+msgid "Image with advanced user-crop"
+msgstr "Bild (mit erweiterten Größenoption)"
 
 #: acf-manual-image-crop-v4.php:24
 #@ acf

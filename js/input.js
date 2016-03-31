@@ -1,7 +1,7 @@
 (function($){
-    acf.fields.image_crop = acf.field.extend({
+    acf.fields.manual_image_crop = acf.field.extend({
 
-        type: 'image_crop',
+        type: 'manual_image_crop',
         $el: null,
 
         actions: {
@@ -252,13 +252,13 @@ function initialize_field( $el ) {
                     var valid = true;
                     if($options.data('width') && data['width'] < $options.data('width')){
 // changed for translation
-                       warnings.push( acf._e('image_crop', 'width_should_be') + $options.data('width') + 'px\n' + acf._e('image_crop', 'selected_width') + data['width'] + 'px');
+                       warnings.push( acf._e('manual_image_crop', 'width_should_be') + $options.data('width') + 'px\n' + acf._e('manual_image_crop', 'selected_width') + data['width'] + 'px');
 // changed END
                         valid = false;
                     }
                     if($options.data('height') && data['height'] < $options.data('height')){
 // changed for translation
-                        warnings.push(acf._e('image_crop', 'height_should_be') + $options.data('height') + 'px\n' + acf._e('image_crop', 'selected_height') + data['height'] + 'px');
+                        warnings.push(acf._e('manual_image_crop', 'height_should_be') + $options.data('height') + 'px\n' + acf._e('manual_image_crop', 'selected_height') + data['height'] + 'px');
 // changed END
                         valid = false;
                     }
@@ -266,7 +266,7 @@ function initialize_field( $el ) {
                         $field.addClass('invalid');
                         $field.find('.init-crop-button').attr('disabled', 'disabled');
 // changed for translation
-                        alert(acf._e('image_crop', 'size_warning') + '\n\n' + warnings.join('\n\n'));
+                        alert(acf._e('manual_image_crop', 'size_warning') + '\n\n' + warnings.join('\n\n'));
 // changed END
                     }
                     else{
@@ -457,7 +457,7 @@ function initialize_field( $el ) {
                     updateFieldValue($field);
                 }
                 else{
-                    $field.append('<div class="error"><p>' + acf._e('image_crop', 'crop_error') + '</p>' + data.error_message);
+                    $field.append('<div class="error"><p>' + acf._e('manual_image_crop', 'crop_error') + '</p>' + data.error_message);
                 }
                 $field.find('.crop-stage').removeClass('loading');
                 cancelCrop($field);
@@ -511,8 +511,8 @@ function initialize_field( $el ) {
 
         acf.add_action('ready append', function( $el ){
 
-            // search $el for fields of type 'image_crop'
-            acf.get_fields({ type : 'image_crop'}, $el).each(function(){
+            // search $el for fields of type 'manual_image_crop'
+            acf.get_fields({ type : 'manual_image_crop'}, $el).each(function(){
 
                 initialize_field( $(this) );
 
@@ -541,7 +541,7 @@ function initialize_field( $el ) {
 
         $(document).live('acf/setup_fields', function(e, postbox){
 
-            $(postbox).find('.field[data-field_type="image_crop"]').each(function(){
+            $(postbox).find('.field[data-field_type="manual_image_crop"]').each(function(){
 
                 initialize_field( $(this) );
 

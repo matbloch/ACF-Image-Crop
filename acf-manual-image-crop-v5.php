@@ -1,6 +1,7 @@
 <?php
 
-class acf_field_image_crop extends acf_field_image {
+if( ! class_exists('acf_field_manual_image_crop') ) :
+class acf_field_manual_image_crop extends acf_field_image {
 
 
     /*
@@ -22,7 +23,7 @@ class acf_field_image_crop extends acf_field_image {
         *  name (string) Single word, no spaces. Underscores allowed
         */
 
-        $this->name = 'image_crop';
+        $this->name = 'manual_image_crop';
 
 
         /*
@@ -58,11 +59,11 @@ class acf_field_image_crop extends acf_field_image {
 
 
         // add filter to media query function to hide cropped images from media library
-        add_filter('ajax_query_attachments_args', array($this, 'filterMediaQuery'));
+        //add_filter('ajax_query_attachments_args', array($this, 'filterMediaQuery'));
 
         /*
         *  l10n (array) Array of strings that are used in JavaScript. This allows JS strings to be translated in PHP and loaded via:
-        *  var message = acf._e('image_crop', 'error');
+        *  var message = acf._e('manual_image_crop', 'error');
         */
 
         $this->l10n = array(
@@ -80,6 +81,30 @@ class acf_field_image_crop extends acf_field_image {
 
     }
 
+    /* enqueue scripts and styles */
+    function input_admin_enqueue_scripts() {
+        $dir = plugin_dir_url( __FILE__ );
+
+        // scripts
+        wp_register_script('acf-input-manual_image_crop', "{$dir}js/input.js", array('acf-input', 'imgareaselect'));
+        wp_enqueue_script(array('acf-input-manual_image_crop'));
+        // styles
+        wp_register_style('acf-input-manual_image_crop', "{$dir}css/input.css", array('acf-input'));
+        wp_enqueue_style(array('acf-input-manual_image_crop','imgareaselect'));
+        //wp_localize_script( 'acf-input-manual_image_crop', 'ajax', array('nonce' => wp_create_nonce('acf_nonce')) );
+    }
+
+    function field_group_admin_enqueue_scripts() {
+
+        $dir = plugin_dir_url( __FILE__ );
+
+        wp_register_script('acf-input-manual-image-crop-options', "{$dir}js/options.js", array('jquery'));
+        wp_enqueue_script( 'acf-input-manual-image-crop-options');
+
+        wp_register_style('acf-input-manual-image-crop-options', "{$dir}css/options.css");
+        wp_enqueue_style( 'acf-input-manual-image-crop-options');
+    }
+
 
     // AJAX handlers
     public function crop_get_image_size()
@@ -87,11 +112,11 @@ class acf_field_image_crop extends acf_field_image {
         $img = wp_get_attachment_image_src( $_POST['image_id'], 'full');
         if($img){
             echo json_encode( array(
-                'url' => $img[0],
-                'width' => $img[1],
-                'height' => $img[2]
-            ) );
-        }
+                    'url' => $img[0],
+                    'width' => $img[1],
+                    'height' => $img[2]
+                ) );
+            }
         exit;
     }
     public function perform_crop(){
@@ -127,70 +152,6 @@ class acf_field_image_crop extends acf_field_image {
     }
 
 
-    function render_field_settings( $field ) {
-
-        /*
-        *  acf_render_field_setting
-        *
-        *  This function will create a setting for your field. Simply pass the $field parameter and an array of field settings.
-        *  The array of settings does not require a `value` or `prefix`; These settings are found from the $field array.
-        *
-        *  More than one setting can be added by copy/paste the above code.
-        *  Please note that you must also have a matching $defaults value for the field name (font_size)
-        */
-
-        // defaults
-        $field = array_merge($this->defaults, $field);
-
-        // compression
-        acf_render_field_setting( $field, array(
-            'label'         => __('Image compression factor','acf-manual_image_crop'),
-            'instructions'  => __('Select a compression factor in the range 1-100','acf-manual_image_crop'),
-            'type'          => 'number',
-            'name'          => 'compression_factor'
-        ));
-
-        // image format
-        acf_render_field_setting( $field, array(
-            'label'         => __('Selectable image formats','acf-manual_image_crop'),
-            'instructions'  => 'select the image formats (separated by whitespace). E.g.: 4:3 auto 3:2',
-            'type'          => 'text',
-            'name'          => 'image_formats'
-        ));
-
-        // fixed dimension
-        acf_render_field_setting( $field, array(
-            'label'			=> __('Fixed dimension','acf-manual_image_crop'),
-            'instructions'	=> __('Select the dimension which should get fixed','acf-manual_image_crop'),
-            'type'			=> 'radio',
-            'name'			=> 'fixed_dimension',
-            'choices'		=> array(
-                'width'		=> __("Width",'acf-manual_image_crop'),
-                'height'	=> __("Height",'acf-manual_image_crop'),
-            ),
-            'layout'	=>	'horizontal'
-        ));
-
-        // size
-        acf_render_field_setting( $field, array(
-            'label'         => __('Fixed dimension size','acf-manual_image_crop'),
-            'instructions'  => __('Select the size of the fixed dimension in pixels','acf-manual_image_crop'),
-            'type'          => 'number',
-            'name'          => 'fixed_size'
-        ));
-
-        // preview_size
-        acf_render_field_setting( $field, array(
-            'label'         => __('Preview Size','acf'),
-            'instructions'  => __('Shown when entering data','acf'),
-            'type'          => 'select',
-            'name'          => 'preview_size',
-            'choices'       =>  acf_get_image_sizes()
-        ));
-
-    }
-
-
     // render field
     function render_field( $field ) {
 
@@ -219,9 +180,6 @@ class acf_field_image_crop extends acf_field_image {
             'data-cropped-image'    => json_encode($imageData->cropped_image),
             'class'                 => 'acf-image-value'
         );
-
-
-        var_dump($imageData->original_image);
 
         $input_atts = array(
             'type'                  => 'select',
@@ -362,21 +320,6 @@ class acf_field_image_crop extends acf_field_image {
         return $imageData;
     }
 
-
-
-    function input_admin_enqueue_scripts() {
-        $dir = plugin_dir_url( __FILE__ );
-
-        // scripts
-        wp_register_script('acf-input-image_crop', "{$dir}js/input.js", array('acf-input', 'imgareaselect'));
-        wp_enqueue_script(array('acf-input-image_crop'));
-        // styles
-        wp_register_style('acf-input-image_crop', "{$dir}css/input.css", array('acf-input'));
-        wp_enqueue_style(array('acf-input-image_crop','imgareaselect'));
-        //wp_localize_script( 'acf-input-image_crop', 'ajax', array('nonce' => wp_create_nonce('acf_nonce')) );
-    }
-
-
     function generate_cropped_image($id, $x1, $x2, $y1, $y2, $targetW, $targetH, $saveToMediaLibrary = false, $previewSize, $compression_factor, $field_name){//$id, $x1, $x2, $y$, $y2, $targetW, $targetH){
         require_once ABSPATH . "/wp-admin/includes/file.php";
         require_once ABSPATH . "/wp-admin/includes/image.php";
@@ -432,44 +375,44 @@ class acf_field_image_crop extends acf_field_image {
 
             // Else we need to return the actual path of the cropped image
 
-            // Add the image url to the imageData-array
-            $imageData['value'] = array('image' => $targetRelativePath);
-            $imageData['url'] = $mediaDir['baseurl'] . '/' . $targetRelativePath;
+                // Add the image url to the imageData-array
+                $imageData['value'] = array('image' => $targetRelativePath);
+                $imageData['url'] = $mediaDir['baseurl'] . '/' . $targetRelativePath;
 
-            // Get preview size dimensions
-            global $_wp_additional_image_sizes;
-            $previewWidth = 0;
-            $previewHeight = 0;
-            $crop = 0;
-            if (isset($_wp_additional_image_sizes[$previewSize])) {
-                $previewWidth = intval($_wp_additional_image_sizes[$previewSize]['width']);
-                $previewHeight = intval($_wp_additional_image_sizes[$previewSize]['height']);
-                $crop = $_wp_additional_image_sizes[$previewSize]['crop'];
-            } else {
-                $previewWidth = get_option($previewSize.'_size_w');
-                $previewHeight = get_option($previewSize.'_size_h');
-                $crop = get_option($previewSize.'_crop');
-            }
+                // Get preview size dimensions
+                global $_wp_additional_image_sizes;
+                $previewWidth = 0;
+                $previewHeight = 0;
+                $crop = 0;
+                if (isset($_wp_additional_image_sizes[$previewSize])) {
+                    $previewWidth = intval($_wp_additional_image_sizes[$previewSize]['width']);
+                    $previewHeight = intval($_wp_additional_image_sizes[$previewSize]['height']);
+                    $crop = $_wp_additional_image_sizes[$previewSize]['crop'];
+                } else {
+                    $previewWidth = get_option($previewSize.'_size_w');
+                    $previewHeight = get_option($previewSize.'_size_h');
+                    $crop = get_option($previewSize.'_crop');
+                }
 
-            // Generate preview file path
+                // Generate preview file path
 
-            if(file_exists($mediaDir['path'] . '/preview_' . $targetFileName)){
-                unlink($mediaDir['path'] . '/preview_' . $targetFileName);
-            }
+                if(file_exists($mediaDir['path'] . '/preview_' . $targetFileName)){
+                    unlink($mediaDir['path'] . '/preview_' . $targetFileName);
+                }
 
-            $previewFilePath = $mediaDir['path'] . '/' . wp_unique_filename( $mediaDir['path'], 'preview_' . $targetFileName);
-            $previewRelativePath = str_replace($mediaDir['basedir'] . '/', '', $previewFilePath);
+                $previewFilePath = $mediaDir['path'] . '/' . wp_unique_filename( $mediaDir['path'], 'preview_' . $targetFileName);
+                $previewRelativePath = str_replace($mediaDir['basedir'] . '/', '', $previewFilePath);
 
-            // Get image editor from cropped image
-            $croppedImage = wp_get_image_editor( $targetFilePath );
-            $croppedImage->resize($previewWidth, $previewHeight, $crop);
+                // Get image editor from cropped image
+                $croppedImage = wp_get_image_editor( $targetFilePath );
+                $croppedImage->resize($previewWidth, $previewHeight, $crop);
 
-            // Save the preview
-            $croppedImage->save($previewFilePath);
+                // Save the preview
+                $croppedImage->save($previewFilePath);
 
-            // Add the preview url
-            $imageData['preview_url'] = $mediaDir['baseurl'] . '/' . $previewRelativePath;
-            $imageData['value']['preview'] = $previewRelativePath;
+                // Add the preview url
+                $imageData['preview_url'] = $mediaDir['baseurl'] . '/' . $previewRelativePath;
+                $imageData['value']['preview'] = $previewRelativePath;
 
 
             $imageData['success'] = true;
@@ -492,76 +435,67 @@ class acf_field_image_crop extends acf_field_image {
         return $atts[0];
     }
 
+    // settings
+    function render_field_settings( $field ) {
 
+        /*
+        *  acf_render_field_setting
+        *
+        *  This function will create a setting for your field. Simply pass the $field parameter and an array of field settings.
+        *  The array of settings does not require a `value` or `prefix`; These settings are found from the $field array.
+        *
+        *  More than one setting can be added by copy/paste the above code.
+        *  Please note that you must also have a matching $defaults value for the field name (font_size)
+        */
 
-    function getAbsoluteImageUrl($relativeUrl){
-        $mediaDir = wp_upload_dir();
-        return $mediaDir['baseurl'] . '/' .  $relativeUrl;
-    }
+        // defaults
+        $field = array_merge($this->defaults, $field);
 
-    function getImagePath($relativePath){
-        $mediaDir = wp_upload_dir();
-        return $mediaDir['basedir'] . '/' .  $relativePath;
-    }
+        // compression
+        acf_render_field_setting( $field, array(
+            'label'         => __('Image compression factor','acf-manual_image_crop'),
+            'instructions'  => __('Select a compression factor in the range 1-100','acf-manual_image_crop'),
+            'type'          => 'number',
+            'name'          => 'compression_factor'
+        ));
 
-    function filterMediaQuery($args){
-        // get options
-        $options = get_option( 'acf_image_crop_settings' );
-        $hide = ( isset($options['hide_cropped']) && $options['hide_cropped'] );
+        // image format
+        acf_render_field_setting( $field, array(
+            'label'         => __('Selectable image formats','acf-manual_image_crop'),
+            'instructions'  => 'select the image formats (separated by whitespace). E.g.: 4:3 auto 3:2',
+            'type'          => 'text',
+            'name'          => 'image_formats'
+        ));
 
-        // If hide option is enabled, do not select items with the acf_is_cropped meta-field
-        if($hide){
-            $args['meta_query']= array(
-                array(
-                    'key' => 'acf_is_cropped',
-                    'compare' => 'NOT EXISTS'
-                )
-            );
-        }
-        return $args;
-    }
+        // fixed dimension
+        acf_render_field_setting( $field, array(
+            'label'			=> __('Fixed dimension','acf-manual_image_crop'),
+            'instructions'	=> __('Select the dimension which should get fixed','acf-manual_image_crop'),
+            'type'			=> 'radio',
+            'name'			=> 'fixed_dimension',
+            'choices'		=> array(
+                'width'		=> __("Width",'acf-manual_image_crop'),
+                'height'	=> __("Height",'acf-manual_image_crop'),
+            ),
+            'layout'	=>	'horizontal'
+        ));
 
+        // size
+        acf_render_field_setting( $field, array(
+            'label'         => __('Fixed dimension size','acf-manual_image_crop'),
+            'instructions'  => __('Select the size of the fixed dimension in pixels','acf-manual_image_crop'),
+            'type'          => 'number',
+            'name'          => 'fixed_size'
+        ));
 
-    function field_group_admin_enqueue_scripts() {
-
-        $dir = plugin_dir_url( __FILE__ );
-
-        wp_register_script('acf-input-image-crop-options', "{$dir}js/options.js", array('jquery'));
-        wp_enqueue_script( 'acf-input-image-crop-options');
-
-        wp_register_style('acf-input-image-crop-options', "{$dir}css/options.css");
-        wp_enqueue_style( 'acf-input-image-crop-options');
-    }
-
-    function format_value( $value, $post_id, $field ) {
-
-        // validate
-        if( !$value ){
-            return false;
-        }
-
-        $data = json_decode($value);
-
-        if(is_object($data)){
-            $value = $data->cropped_image;
-        }
-        else{
-            // We are migrating from a standard image field
-            $data = new stdClass();
-            $data->cropped_image = $value;
-            $data->original_image = $value;
-        }
-
-        // format
-        if(is_array($data->cropped_image)){
-
-            $value = $this->getAbsoluteImageUrl($data->cropped_image['image']);
-        }
-        elseif(is_object($data->cropped_image)){
-            $value = $this->getAbsoluteImageUrl($data->cropped_image->image);
-        }
-
-        return $value;
+        // preview_size
+        acf_render_field_setting( $field, array(
+            'label'         => __('Preview Size','acf'),
+            'instructions'  => __('Shown when entering data','acf'),
+            'type'          => 'select',
+            'name'          => 'preview_size',
+            'choices'       =>  acf_get_image_sizes()
+        ));
 
     }
 
@@ -607,11 +541,50 @@ class acf_field_image_crop extends acf_field_image {
         return $out;
     }
 
+    // field value handling
+
+    function format_value( $value, $post_id, $field ) {
+
+        // validate
+        if( !$value ){
+            return false;
+        }
+
+        $data = json_decode($value);
+
+        if(is_object($data)){
+            $value = $data->cropped_image;
+        }
+        else{
+            // We are migrating from a standard image field
+            $data = new stdClass();
+            $data->cropped_image = $value;
+            $data->original_image = $value;
+        }
+
+        // format
+        if(is_array($data->cropped_image)){
+
+            $value = $this->getAbsoluteImageUrl($data->cropped_image['image']);
+        }
+        elseif(is_object($data->cropped_image)){
+            $value = $this->getAbsoluteImageUrl($data->cropped_image->image);
+        }
+
+        return $value;
+
+    }
+
+    function getAbsoluteImageUrl($relativeUrl){
+        $mediaDir = wp_upload_dir();
+        return $mediaDir['baseurl'] . '/' .  $relativeUrl;
+    }
 
 }
 
-
 // create field
-new acf_field_image_crop();
+new acf_field_manual_image_crop();
+
+endif;
 
 ?>
