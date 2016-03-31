@@ -1,6 +1,7 @@
 <?php
 
-class acf_field_image_crop extends acf_field_image {
+if( ! class_exists('acf_field_manual_image_crop') ) :
+class acf_field_manual_image_crop extends acf_field_image {
 
 
     /*
@@ -81,52 +82,122 @@ class acf_field_image_crop extends acf_field_image {
     }
 
 
-    // AJAX handlers
-    public function crop_get_image_size()
-    {
-        $img = wp_get_attachment_image_src( $_POST['image_id'], 'full');
-        if($img){
-            echo json_encode( array(
-                'url' => $img[0],
-                'width' => $img[1],
-                'height' => $img[2]
-            ) );
-        }
-        exit;
-    }
-    public function perform_crop(){
-        $targetWidth = $_POST['target_width'];
-        $targetHeight = $_POST['target_height'];
-        $compression_factor = $_POST['compression_factor'];
+    function generate_cropped_image($id, $x1, $x2, $y1, $y2, $targetW, $targetH, $saveToMediaLibrary = false, $previewSize, $compression_factor, $field_name){//$id, $x1, $x2, $y$, $y2, $targetW, $targetH){
+        require_once ABSPATH . "/wp-admin/includes/file.php";
+        require_once ABSPATH . "/wp-admin/includes/image.php";
 
-        // fixed dimension
-        if($_POST['fixed_dimension'] == 'width'){
-            $targetWidth = intval($_POST['fixed_size']);
-            if($_POST['img_format'] == 'auto'){
-                $targetHeight = intval($targetWidth/abs($_POST['x2']-$_POST['x1'])*abs($_POST['y2']-$_POST['y1']));
-            }else{
-                $format = explode(':', $_POST['img_format']);
-                $targetHeight = intval($targetWidth/$format[0]*$format[1]);
+        $field_name = sanitize_file_name($field_name);
+
+        // Create the variable that will hold the new image data
+        $imageData = array();
+
+        // Fetch media library info
+        $mediaDir = wp_upload_dir();
+
+        // Get original image info
+        $originalImageData = wp_get_attachment_metadata($id);
+
+        // Get image editor from original image path to crop the image
+        $image = wp_get_image_editor( $mediaDir['basedir'] . '/' . $originalImageData['file'] );
+
+        // Set quality
+        $image->set_quality( apply_filters('acf-manual-image-crop/image-quality', $compression_factor) );
+
+        if(! is_wp_error( $image ) ){
+
+            // Crop the image using the provided measurements
+            $image->crop($x1, $y1, $x2 - $x1, $y2 - $y1, $targetW, $targetH);
+
+            // Retrieve original filename and separate it from its file extension
+            $originalFileName = explode('.', basename($originalImageData['file']));
+
+            // Retrieve and remove file extension from array
+            $originalFileExtension = array_pop($originalFileName);
+
+            // Generate new base filename
+            $targetFileName = implode('.', $originalFileName) . '_cropped_'. $field_name  . '.' . $originalFileExtension;
+
+            if(file_exists($mediaDir['path'] . '/' .$targetFileName)){
+                unlink($mediaDir['path'] . '/' .$targetFileName);
             }
-        }else{
-            $targetHeight = intval($_POST['fixed_size']);
 
-            if($_POST['img_format'] == 'auto'){
-                $targetWidth = intval($targetHeight*abs($_POST['x2']-$_POST['x1'])/abs($_POST['y2']-$_POST['y1']));
-            }else{
-                $format = explode(':', $_POST['img_format']);
-                $targetWidth = intval($targetHeight*$format[0]/$format[1]);
+            // Generate target path new file using existing media library
+            $targetFilePath = $mediaDir['path'] . '/' . wp_unique_filename( $mediaDir['path'], $targetFileName);
+
+            // Get the relative path to save as the actual image url
+            $targetRelativePath = str_replace($mediaDir['basedir'] . '/', '', $targetFilePath);
+
+            // Save the image to the target path
+            if(is_wp_error($image->save($targetFilePath))){
+                // There was an error saving the image
+                //TODO handle it
             }
+
+
+
+            // Else we need to return the actual path of the cropped image
+
+                // Add the image url to the imageData-array
+                $imageData['value'] = array('image' => $targetRelativePath);
+                $imageData['url'] = $mediaDir['baseurl'] . '/' . $targetRelativePath;
+
+                // Get preview size dimensions
+                global $_wp_additional_image_sizes;
+                $previewWidth = 0;
+                $previewHeight = 0;
+                $crop = 0;
+                if (isset($_wp_additional_image_sizes[$previewSize])) {
+                    $previewWidth = intval($_wp_additional_image_sizes[$previewSize]['width']);
+                    $previewHeight = intval($_wp_additional_image_sizes[$previewSize]['height']);
+                    $crop = $_wp_additional_image_sizes[$previewSize]['crop'];
+                } else {
+                    $previewWidth = get_option($previewSize.'_size_w');
+                    $previewHeight = get_option($previewSize.'_size_h');
+                    $crop = get_option($previewSize.'_crop');
+                }
+
+                // Generate preview file path
+
+                if(file_exists($mediaDir['path'] . '/preview_' . $targetFileName)){
+                    unlink($mediaDir['path'] . '/preview_' . $targetFileName);
+                }
+
+                $previewFilePath = $mediaDir['path'] . '/' . wp_unique_filename( $mediaDir['path'], 'preview_' . $targetFileName);
+                $previewRelativePath = str_replace($mediaDir['basedir'] . '/', '', $previewFilePath);
+
+                // Get image editor from cropped image
+                $croppedImage = wp_get_image_editor( $targetFilePath );
+                $croppedImage->resize($previewWidth, $previewHeight, $crop);
+
+                // Save the preview
+                $croppedImage->save($previewFilePath);
+
+                // Add the preview url
+                $imageData['preview_url'] = $mediaDir['baseurl'] . '/' . $previewRelativePath;
+                $imageData['value']['preview'] = $previewRelativePath;
+
+
+            $imageData['success'] = true;
+            return $imageData;
         }
-
-        $imageData = $this->generate_cropped_image($_POST['id'], $_POST['x1'], $_POST['x2'], $_POST['y1'], $_POST['y2'], $targetWidth, $targetHeight, false, $_POST['preview_size'], $compression_factor, $_POST['field_name']);
-
-        echo json_encode($imageData);
-
-        die();
+        else{
+            // Handle WP_ERROR
+            $response = array();
+            $response['success'] = false;
+            $response['error_message'] = '';
+            foreach($image->error_data as $code => $message){
+                $response['error_message'] .= '<p><strong>' . $code . '</strong>: ' . $message . '</p>';
+            }
+            return $response;
+        }
     }
 
+    function get_image_src($id, $size = 'thumbnail'){
+        $atts = wp_get_attachment_image_src( $id, $size);
+        return $atts[0];
+    }
 
+    // settings
     function render_field_settings( $field ) {
 
         /*
@@ -189,6 +260,37 @@ class acf_field_image_crop extends acf_field_image {
         ));
 
     }
+
+
+
+    /* OOOOK */
+
+
+
+    /* enqueue scripts and styles */
+    function input_admin_enqueue_scripts() {
+        $dir = plugin_dir_url( __FILE__ );
+
+        // scripts
+        wp_register_script('acf-input-image_crop', "{$dir}js/input.js", array('acf-input', 'imgareaselect'));
+        wp_enqueue_script(array('acf-input-image_crop'));
+        // styles
+        wp_register_style('acf-input-image_crop', "{$dir}css/input.css", array('acf-input'));
+        wp_enqueue_style(array('acf-input-image_crop','imgareaselect'));
+        //wp_localize_script( 'acf-input-image_crop', 'ajax', array('nonce' => wp_create_nonce('acf_nonce')) );
+    }
+
+    function field_group_admin_enqueue_scripts() {
+
+        $dir = plugin_dir_url( __FILE__ );
+
+        wp_register_script('acf-input-image-crop-options', "{$dir}js/options.js", array('jquery'));
+        wp_enqueue_script( 'acf-input-image-crop-options');
+
+        wp_register_style('acf-input-image-crop-options', "{$dir}css/options.css");
+        wp_enqueue_style( 'acf-input-image-crop-options');
+    }
+
 
 
     // render field
@@ -362,207 +464,49 @@ class acf_field_image_crop extends acf_field_image {
         return $imageData;
     }
 
-
-
-    function input_admin_enqueue_scripts() {
-        $dir = plugin_dir_url( __FILE__ );
-
-        // scripts
-        wp_register_script('acf-input-image_crop', "{$dir}js/input.js", array('acf-input', 'imgareaselect'));
-        wp_enqueue_script(array('acf-input-image_crop'));
-        // styles
-        wp_register_style('acf-input-image_crop', "{$dir}css/input.css", array('acf-input'));
-        wp_enqueue_style(array('acf-input-image_crop','imgareaselect'));
-        //wp_localize_script( 'acf-input-image_crop', 'ajax', array('nonce' => wp_create_nonce('acf_nonce')) );
+    // AJAX handlers
+    public function crop_get_image_size()
+    {
+        $img = wp_get_attachment_image_src( $_POST['image_id'], 'full');
+        if($img){
+            echo json_encode( array(
+                'url' => $img[0],
+                'width' => $img[1],
+                'height' => $img[2]
+            ) );
+        }
+        exit;
     }
+    public function perform_crop(){
+        $targetWidth = $_POST['target_width'];
+        $targetHeight = $_POST['target_height'];
+        $compression_factor = $_POST['compression_factor'];
 
-
-    function generate_cropped_image($id, $x1, $x2, $y1, $y2, $targetW, $targetH, $saveToMediaLibrary = false, $previewSize, $compression_factor, $field_name){//$id, $x1, $x2, $y$, $y2, $targetW, $targetH){
-        require_once ABSPATH . "/wp-admin/includes/file.php";
-        require_once ABSPATH . "/wp-admin/includes/image.php";
-
-        $field_name = sanitize_file_name($field_name);
-
-        // Create the variable that will hold the new image data
-        $imageData = array();
-
-        // Fetch media library info
-        $mediaDir = wp_upload_dir();
-
-        // Get original image info
-        $originalImageData = wp_get_attachment_metadata($id);
-
-        // Get image editor from original image path to crop the image
-        $image = wp_get_image_editor( $mediaDir['basedir'] . '/' . $originalImageData['file'] );
-
-        // Set quality
-        $image->set_quality( apply_filters('acf-manual-image-crop/image-quality', $compression_factor) );
-
-        if(! is_wp_error( $image ) ){
-
-            // Crop the image using the provided measurements
-            $image->crop($x1, $y1, $x2 - $x1, $y2 - $y1, $targetW, $targetH);
-
-            // Retrieve original filename and separate it from its file extension
-            $originalFileName = explode('.', basename($originalImageData['file']));
-
-            // Retrieve and remove file extension from array
-            $originalFileExtension = array_pop($originalFileName);
-
-            // Generate new base filename
-            $targetFileName = implode('.', $originalFileName) . '_cropped_'. $field_name  . '.' . $originalFileExtension;
-
-            if(file_exists($mediaDir['path'] . '/' .$targetFileName)){
-                unlink($mediaDir['path'] . '/' .$targetFileName);
+        // fixed dimension
+        if($_POST['fixed_dimension'] == 'width'){
+            $targetWidth = intval($_POST['fixed_size']);
+            if($_POST['img_format'] == 'auto'){
+                $targetHeight = intval($targetWidth/abs($_POST['x2']-$_POST['x1'])*abs($_POST['y2']-$_POST['y1']));
+            }else{
+                $format = explode(':', $_POST['img_format']);
+                $targetHeight = intval($targetWidth/$format[0]*$format[1]);
             }
+        }else{
+            $targetHeight = intval($_POST['fixed_size']);
 
-            // Generate target path new file using existing media library
-            $targetFilePath = $mediaDir['path'] . '/' . wp_unique_filename( $mediaDir['path'], $targetFileName);
-
-            // Get the relative path to save as the actual image url
-            $targetRelativePath = str_replace($mediaDir['basedir'] . '/', '', $targetFilePath);
-
-            // Save the image to the target path
-            if(is_wp_error($image->save($targetFilePath))){
-                // There was an error saving the image
-                //TODO handle it
+            if($_POST['img_format'] == 'auto'){
+                $targetWidth = intval($targetHeight*abs($_POST['x2']-$_POST['x1'])/abs($_POST['y2']-$_POST['y1']));
+            }else{
+                $format = explode(':', $_POST['img_format']);
+                $targetWidth = intval($targetHeight*$format[0]/$format[1]);
             }
-
-
-
-            // Else we need to return the actual path of the cropped image
-
-            // Add the image url to the imageData-array
-            $imageData['value'] = array('image' => $targetRelativePath);
-            $imageData['url'] = $mediaDir['baseurl'] . '/' . $targetRelativePath;
-
-            // Get preview size dimensions
-            global $_wp_additional_image_sizes;
-            $previewWidth = 0;
-            $previewHeight = 0;
-            $crop = 0;
-            if (isset($_wp_additional_image_sizes[$previewSize])) {
-                $previewWidth = intval($_wp_additional_image_sizes[$previewSize]['width']);
-                $previewHeight = intval($_wp_additional_image_sizes[$previewSize]['height']);
-                $crop = $_wp_additional_image_sizes[$previewSize]['crop'];
-            } else {
-                $previewWidth = get_option($previewSize.'_size_w');
-                $previewHeight = get_option($previewSize.'_size_h');
-                $crop = get_option($previewSize.'_crop');
-            }
-
-            // Generate preview file path
-
-            if(file_exists($mediaDir['path'] . '/preview_' . $targetFileName)){
-                unlink($mediaDir['path'] . '/preview_' . $targetFileName);
-            }
-
-            $previewFilePath = $mediaDir['path'] . '/' . wp_unique_filename( $mediaDir['path'], 'preview_' . $targetFileName);
-            $previewRelativePath = str_replace($mediaDir['basedir'] . '/', '', $previewFilePath);
-
-            // Get image editor from cropped image
-            $croppedImage = wp_get_image_editor( $targetFilePath );
-            $croppedImage->resize($previewWidth, $previewHeight, $crop);
-
-            // Save the preview
-            $croppedImage->save($previewFilePath);
-
-            // Add the preview url
-            $imageData['preview_url'] = $mediaDir['baseurl'] . '/' . $previewRelativePath;
-            $imageData['value']['preview'] = $previewRelativePath;
-
-
-            $imageData['success'] = true;
-            return $imageData;
-        }
-        else{
-            // Handle WP_ERROR
-            $response = array();
-            $response['success'] = false;
-            $response['error_message'] = '';
-            foreach($image->error_data as $code => $message){
-                $response['error_message'] .= '<p><strong>' . $code . '</strong>: ' . $message . '</p>';
-            }
-            return $response;
-        }
-    }
-
-    function get_image_src($id, $size = 'thumbnail'){
-        $atts = wp_get_attachment_image_src( $id, $size);
-        return $atts[0];
-    }
-
-
-
-    function getAbsoluteImageUrl($relativeUrl){
-        $mediaDir = wp_upload_dir();
-        return $mediaDir['baseurl'] . '/' .  $relativeUrl;
-    }
-
-    function getImagePath($relativePath){
-        $mediaDir = wp_upload_dir();
-        return $mediaDir['basedir'] . '/' .  $relativePath;
-    }
-
-    function filterMediaQuery($args){
-        // get options
-        $options = get_option( 'acf_image_crop_settings' );
-        $hide = ( isset($options['hide_cropped']) && $options['hide_cropped'] );
-
-        // If hide option is enabled, do not select items with the acf_is_cropped meta-field
-        if($hide){
-            $args['meta_query']= array(
-                array(
-                    'key' => 'acf_is_cropped',
-                    'compare' => 'NOT EXISTS'
-                )
-            );
-        }
-        return $args;
-    }
-
-
-    function field_group_admin_enqueue_scripts() {
-
-        $dir = plugin_dir_url( __FILE__ );
-
-        wp_register_script('acf-input-image-crop-options', "{$dir}js/options.js", array('jquery'));
-        wp_enqueue_script( 'acf-input-image-crop-options');
-
-        wp_register_style('acf-input-image-crop-options', "{$dir}css/options.css");
-        wp_enqueue_style( 'acf-input-image-crop-options');
-    }
-
-    function format_value( $value, $post_id, $field ) {
-
-        // validate
-        if( !$value ){
-            return false;
         }
 
-        $data = json_decode($value);
+        $imageData = $this->generate_cropped_image($_POST['id'], $_POST['x1'], $_POST['x2'], $_POST['y1'], $_POST['y2'], $targetWidth, $targetHeight, false, $_POST['preview_size'], $compression_factor, $_POST['field_name']);
 
-        if(is_object($data)){
-            $value = $data->cropped_image;
-        }
-        else{
-            // We are migrating from a standard image field
-            $data = new stdClass();
-            $data->cropped_image = $value;
-            $data->original_image = $value;
-        }
+        echo json_encode($imageData);
 
-        // format
-        if(is_array($data->cropped_image)){
-
-            $value = $this->getAbsoluteImageUrl($data->cropped_image['image']);
-        }
-        elseif(is_object($data->cropped_image)){
-            $value = $this->getAbsoluteImageUrl($data->cropped_image->image);
-        }
-
-        return $value;
-
+        die();
     }
 
 
@@ -607,11 +551,51 @@ class acf_field_image_crop extends acf_field_image {
         return $out;
     }
 
+    // field value handling
+
+    function format_value( $value, $post_id, $field ) {
+
+        // validate
+        if( !$value ){
+            return false;
+        }
+
+        $data = json_decode($value);
+
+        if(is_object($data)){
+            $value = $data->cropped_image;
+        }
+        else{
+            // We are migrating from a standard image field
+            $data = new stdClass();
+            $data->cropped_image = $value;
+            $data->original_image = $value;
+        }
+
+        // format
+        if(is_array($data->cropped_image)){
+
+            $value = $this->getAbsoluteImageUrl($data->cropped_image['image']);
+        }
+        elseif(is_object($data->cropped_image)){
+            $value = $this->getAbsoluteImageUrl($data->cropped_image->image);
+        }
+
+        return $value;
+
+    }
+
+    function getAbsoluteImageUrl($relativeUrl){
+        $mediaDir = wp_upload_dir();
+        return $mediaDir['baseurl'] . '/' .  $relativeUrl;
+    }
+
 
 }
 
-
 // create field
-new acf_field_image_crop();
+new acf_field_manual_image_crop();
+
+endif;
 
 ?>
