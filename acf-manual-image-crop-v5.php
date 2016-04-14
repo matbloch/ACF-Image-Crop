@@ -155,6 +155,7 @@ class acf_field_manual_image_crop extends acf_field_image {
     // render field
     function render_field( $field ) {
 
+	
         // enqueue
         acf_enqueue_uploader();
 
@@ -168,7 +169,7 @@ class acf_field_manual_image_crop extends acf_field_image {
             'data-fixed_size'         => $field['fixed_size'],
             'data-compression_factor' => $field['compression_factor'],
             'data-preview_size'     => $field['preview_size'],
-            'data-field_name'       => $field['key']
+            'data-field_name'       => $field['key'].'_id'.get_the_id()
         );
 
         $input_atts = array(
